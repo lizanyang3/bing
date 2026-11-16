@@ -46,7 +46,7 @@ jobs:
                       "url": "https://cn.bing.com" + img["url"],
                       "url_uhd": base + "_UHD.jpg",
                       "url_4k": base + "_3840x2160.jpg",
-                      "thumbnail": base + "_480x270.jpg",
+                      "thumbnail": base + "_320x180.jpg",
                       "copyrightlink": img["copyrightlink"],
                       "enddate": img["enddate"],
                       "width": width,
