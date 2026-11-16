@@ -61,24 +61,28 @@ body{
   </div>
 </div>
 
-<button id="toggle4k">切换 4K</button>
+<button id="toggle4k">切换高清原图</button>
 
 <script>
 let currentData = null;
-let isUHD = false;
+let isHD = false;
+
+function setImage(url) {
+  document.getElementById("bg").src = url;
+}
 
 async function loadData() {
-  const res = await fetch("./bing.json");
+  const res = await fetch("./bing.json", { cache: "no-store" });
   currentData = await res.json();
 
-  document.getElementById("bg").src = currentData.url;
+  setImage(currentData.url);
   document.getElementById("title").innerText = currentData.title;
   document.getElementById("copyright").innerHTML =
     `<a href="${currentData.copyrightlink}" target="_blank">${currentData.copyright}</a>`;
 
   if (currentData.resolution) {
     document.getElementById("resolution").innerText =
-      `分辨率：${currentData.resolution}`;
+      `当前尺寸：${currentData.resolution}`;
   }
 
   if (!currentData.url_uhd && !currentData.url_4k) {
@@ -89,14 +93,24 @@ async function loadData() {
 document.getElementById("toggle4k").addEventListener("click", function () {
   if (!currentData) return;
 
-  isUHD = !isUHD;
+  isHD = !isHD;
 
-  if (isUHD) {
-    document.getElementById("bg").src = currentData.url_uhd || currentData.url_4k;
-    this.innerText = "切换普通画质";
+  if (isHD) {
+    const hdUrl = currentData.url_uhd || currentData.url_4k;
+
+    this.innerText = "回退普通图";
+    setImage(hdUrl);
+
+    document.getElementById("bg").onerror = () => {
+      isHD = false;
+      this.innerText = "切换高清原图";
+      setImage(currentData.url);
+      alert("这张图没有开放高清原图，已回退普通画质");
+    };
   } else {
-    document.getElementById("bg").src = currentData.url;
-    this.innerText = "切换 4K";
+    this.innerText = "切换高清原图";
+    setImage(currentData.url);
+    document.getElementById("bg").onerror = null;
   }
 });
 
