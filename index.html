@@ -20,7 +20,7 @@ body{
 }
 .info{
   position:fixed;
-  bottom:20px;
+  bottom:86px;
   left:20px;
   color:#fff;
   background:rgba(0,0,0,0.45);
@@ -52,6 +52,35 @@ button{
 button:hover{
   background:rgba(0,0,0,0.75);
 }
+.history{
+  position:fixed;
+  bottom:20px;
+  left:20px;
+  display:flex;
+  gap:10px;
+  max-width:calc(100% - 240px);
+  overflow-x:auto;
+  padding:4px;
+}
+.history-item{
+  width:120px;
+  height:68px;
+  border-radius:8px;
+  overflow:hidden;
+  cursor:pointer;
+  border:2px solid transparent;
+  background:rgba(255,255,255,0.12);
+  flex:0 0 auto;
+}
+.history-item.active{
+  border-color:#fff;
+}
+.history-item img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
 </style>
 </head>
 <body>
@@ -66,6 +95,8 @@ button:hover{
   </div>
 </div>
 
+<div class="history" id="history"></div>
+
 <div class="btn-group">
   <button id="toggle4k">切换普通画质</button>
   <button id="downloadBtn">下载图片</button>
@@ -73,6 +104,7 @@ button:hover{
 
 <script>
 let currentData = null;
+let activeWallpaper = null;
 let isHD = true;
 let nowImgUrl = "";
 let currentNaturalSize = "";
@@ -80,23 +112,41 @@ let currentNaturalSize = "";
 const bg = document.getElementById("bg");
 const resolutionEl = document.getElementById("resolution");
 const toggleBtn = document.getElementById("toggle4k");
+const historyEl = document.getElementById("history");
 
 function setResolutionText() {
-  if (!currentData) return;
+  if (!activeWallpaper) return;
 
   if (isHD) {
     resolutionEl.innerText = "当前画质：高清原图 UHD";
   } else {
     resolutionEl.innerText =
-      `当前尺寸：${currentData.resolution || "1920×1080"}`;
+      `当前尺寸：${activeWallpaper.resolution || "1920×1080"}`;
   }
 }
 
-function setImage(url) {
-  nowImgUrl = url;
+function setImage(wallpaper) {
+  activeWallpaper = wallpaper;
   currentNaturalSize = "";
-  bg.src = url;
+
+  const hdUrl = wallpaper.url_uhd || wallpaper.url_4k;
+  const useHD = Boolean(hdUrl);
+  isHD = useHD;
+
+  toggleBtn.style.display = hdUrl ? "inline-block" : "none";
+  toggleBtn.innerText = useHD ? "切换普通画质" : "切换高清原图";
+
+  nowImgUrl = useHD ? hdUrl : wallpaper.url;
+  bg.src = nowImgUrl;
   setResolutionText();
+}
+
+function updateInfo() {
+  if (!activeWallpaper) return;
+
+  document.getElementById("title").innerText = activeWallpaper.title;
+  document.getElementById("copyright").innerHTML =
+    `<a href="${activeWallpaper.copyrightlink}" target="_blank">${activeWallpaper.copyright}</a>`;
 }
 
 bg.addEventListener("load", function () {
@@ -106,62 +156,94 @@ bg.addEventListener("load", function () {
   }
 });
 
+function renderHistory() {
+  historyEl.innerHTML = "";
+  const list = currentData.history || [];
+
+  [currentData.current, ...list].forEach((wallpaper, index) => {
+    if (!wallpaper) return;
+
+    const item = document.createElement("div");
+    item.className = "history-item";
+    item.title = wallpaper.title;
+
+    const img = document.createElement("img");
+    img.src = wallpaper.thumbnail || wallpaper.url;
+    img.alt = wallpaper.title;
+    img.loading = "lazy";
+
+    item.appendChild(img);
+    item.addEventListener("click", () => {
+      setImage(wallpaper);
+      updateInfo();
+      document.querySelectorAll(".history-item").forEach(el => el.classList.remove("active"));
+      item.classList.add("active");
+    });
+
+    historyEl.appendChild(item);
+
+    if (index === 0) item.classList.add("active");
+  });
+}
+
 async function loadData() {
   const res = await fetch("./bing.json", { cache: "no-store" });
   currentData = await res.json();
 
-  document.getElementById("title").innerText = currentData.title;
-  document.getElementById("copyright").innerHTML =
-    `<a href="${currentData.copyrightlink}" target="_blank">${currentData.copyright}</a>`;
+  if (currentData.error) {
+    resolutionEl.innerText = currentData.error;
+    return;
+  }
 
-  const hdUrl = currentData.url_uhd || currentData.url_4k;
+  setImage(currentData.current);
+  updateInfo();
+  renderHistory();
 
-  if (hdUrl) {
-    isHD = true;
-    toggleBtn.innerText = "切换普通画质";
-    setImage(hdUrl);
-
-    bg.onerror = () => {
+  bg.onerror = () => {
+    if (isHD) {
       isHD = false;
       toggleBtn.innerText = "切换高清原图";
-      setImage(currentData.url);
-      alert("这张图没有开放高清原图，已回退普通画质");
-    };
-  } else {
-    isHD = false;
-    toggleBtn.style.display = "none";
-    setImage(currentData.url);
-  }
+      nowImgUrl = activeWallpaper.url;
+      bg.src = nowImgUrl;
+      setResolutionText();
+    }
+  };
 }
 
 toggleBtn.addEventListener("click", function () {
-  if (!currentData) return;
+  if (!activeWallpaper) return;
 
   isHD = !isHD;
 
   if (isHD) {
-    const hdUrl = currentData.url_uhd || currentData.url_4k;
+    const hdUrl = activeWallpaper.url_uhd || activeWallpaper.url_4k;
     this.innerText = "切换普通画质";
-    setImage(hdUrl);
+    nowImgUrl = hdUrl;
+    bg.src = hdUrl;
 
     bg.onerror = () => {
       isHD = false;
       this.innerText = "切换高清原图";
-      setImage(currentData.url);
+      nowImgUrl = activeWallpaper.url;
+      bg.src = activeWallpaper.url;
+      setResolutionText();
       alert("这张图没有开放高清原图，已回退普通画质");
     };
   } else {
     this.innerText = "切换高清原图";
-    setImage(currentData.url);
+    nowImgUrl = activeWallpaper.url;
+    bg.src = activeWallpaper.url;
     bg.onerror = null;
   }
+
+  setResolutionText();
 });
 
 document.getElementById("downloadBtn").addEventListener("click", async () => {
-  if (!nowImgUrl || !currentData) return;
+  if (!nowImgUrl || !activeWallpaper) return;
 
-  const name = currentData.title.replace(/[\/\\:*?"<>|]/g, "_");
-  const resStr = currentNaturalSize || currentData.resolution || "";
+  const name = activeWallpaper.title.replace(/[\/\\:*?"<>|]/g, "_");
+  const resStr = currentNaturalSize || activeWallpaper.resolution || "";
   const saveName = `必应壁纸_${name}_${resStr}.jpg`;
 
   try {
