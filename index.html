@@ -9,7 +9,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bottom-safe: env(safe-area-inset-bottom, 0px);
-  --overlay: rgba(0,0,0,.45);
+  --overlay: rgba(0,0,0,.35);
 }
 body{
   width:100vw;
@@ -281,44 +281,6 @@ function updatePhotoMeta() {
   photoMetaEl.innerText = parts.length ? parts.join("　") : "拍摄信息暂未提供";
 }
 
-function applyImageOverlay() {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
-
-  if (!bg.naturalWidth || !bg.naturalHeight) {
-    document.documentElement.style.setProperty("--overlay", "rgba(0,0,0,.45)");
-    return;
-  }
-
-  const width = 32;
-  const height = 18;
-  canvas.width = width;
-  canvas.height = height;
-  ctx.drawImage(bg, 0, 0, width, height);
-
-  const pixels = ctx.getImageData(0, 0, width, height).data;
-  let r = 0, g = 0, b = 0, count = 0;
-
-  for (let i = 0; i < pixels.length; i += 4) {
-    r += pixels[i];
-    g += pixels[i + 1];
-    b += pixels[i + 2];
-    count++;
-  }
-
-  r = Math.round(r / count);
-  g = Math.round(g / count);
-  b = Math.round(b / count);
-
-  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
-  const alpha = luminance > 0.65 ? 0.58 : 0.38;
-
-  document.documentElement.style.setProperty(
-    "--overlay",
-    `rgba(${r},${g},${b},${alpha})`
-  );
-}
-
 function setImage(wallpaper) {
   activeWallpaper = wallpaper;
   currentNaturalSize = "";
@@ -355,7 +317,6 @@ function markActiveThumb() {
 
 bg.addEventListener("load", function () {
   bg.classList.add("visible");
-  applyImageOverlay();
 
   if (bg.naturalWidth && bg.naturalHeight) {
     currentNaturalSize = `${bg.naturalWidth}×${bg.naturalHeight}`;
