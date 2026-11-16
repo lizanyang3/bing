@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -17,6 +17,11 @@ body{
   width:100%;
   height:100%;
   object-fit:cover;
+  opacity:0;
+  transition:opacity .6s ease;
+}
+#bg.visible{
+  opacity:1;
 }
 .info{
   position:fixed;
@@ -27,7 +32,7 @@ body{
   padding:12px 16px;
   border-radius:8px;
   font-size:14px;
-  max-width:calc(100% - 240px);
+  max-width:calc(100% - 280px);
 }
 .info a{
   color:#8cf;
@@ -39,6 +44,8 @@ body{
   right:20px;
   display:flex;
   gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
 }
 button{
   color:#fff;
@@ -58,7 +65,7 @@ button:hover{
   left:20px;
   display:flex;
   gap:10px;
-  max-width:calc(100% - 240px);
+  max-width:calc(100% - 280px);
   overflow-x:auto;
   padding:4px;
 }
@@ -98,20 +105,28 @@ button:hover{
 <div class="history" id="history"></div>
 
 <div class="btn-group">
+  <button id="autoBtn">暂停轮换</button>
   <button id="toggle4k">切换普通画质</button>
   <button id="downloadBtn">下载图片</button>
 </div>
 
 <script>
 let currentData = null;
+let wallpaperList = [];
+let activeIndex = 0;
 let activeWallpaper = null;
 let isHD = true;
 let nowImgUrl = "";
 let currentNaturalSize = "";
+let autoTimer = null;
+let isAutoPlay = true;
+
+const ROTATE_INTERVAL = 30000;
 
 const bg = document.getElementById("bg");
 const resolutionEl = document.getElementById("resolution");
 const toggleBtn = document.getElementById("toggle4k");
+const autoBtn = document.getElementById("autoBtn");
 const historyEl = document.getElementById("history");
 
 function setResolutionText() {
@@ -137,6 +152,7 @@ function setImage(wallpaper) {
   toggleBtn.innerText = useHD ? "切换普通画质" : "切换高清原图";
 
   nowImgUrl = useHD ? hdUrl : wallpaper.url;
+  bg.classList.remove("visible");
   bg.src = nowImgUrl;
   setResolutionText();
 }
@@ -149,7 +165,14 @@ function updateInfo() {
     `<a href="${activeWallpaper.copyrightlink}" target="_blank">${activeWallpaper.copyright}</a>`;
 }
 
+function markActiveThumb() {
+  document.querySelectorAll(".history-item").forEach((el, index) => {
+    el.classList.toggle("active", index === activeIndex);
+  });
+}
+
 bg.addEventListener("load", function () {
+  bg.classList.add("visible");
   if (bg.naturalWidth && bg.naturalHeight) {
     currentNaturalSize = `${bg.naturalWidth}×${bg.naturalHeight}`;
     resolutionEl.innerText = `当前图片：${currentNaturalSize}`;
@@ -158,11 +181,8 @@ bg.addEventListener("load", function () {
 
 function renderHistory() {
   historyEl.innerHTML = "";
-  const list = currentData.history || [];
 
-  [currentData.current, ...list].forEach((wallpaper, index) => {
-    if (!wallpaper) return;
-
+  wallpaperList.forEach((wallpaper, index) => {
     const item = document.createElement("div");
     item.className = "history-item";
     item.title = wallpaper.title;
@@ -174,17 +194,58 @@ function renderHistory() {
 
     item.appendChild(img);
     item.addEventListener("click", () => {
+      activeIndex = index;
       setImage(wallpaper);
       updateInfo();
-      document.querySelectorAll(".history-item").forEach(el => el.classList.remove("active"));
-      item.classList.add("active");
+      markActiveThumb();
+      restartAutoTimer();
     });
 
     historyEl.appendChild(item);
-
-    if (index === 0) item.classList.add("active");
   });
+
+  markActiveThumb();
 }
+
+function showNextWallpaper() {
+  if (wallpaperList.length === 0) return;
+
+  activeIndex = (activeIndex + 1) % wallpaperList.length;
+  const wallpaper = wallpaperList[activeIndex];
+
+  setImage(wallpaper);
+  updateInfo();
+  markActiveThumb();
+}
+
+function startAutoTimer() {
+  stopAutoTimer();
+  if (!isAutoPlay) return;
+
+  autoTimer = setInterval(showNextWallpaper, ROTATE_INTERVAL);
+}
+
+function stopAutoTimer() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+  }
+}
+
+function restartAutoTimer() {
+  startAutoTimer();
+}
+
+autoBtn.addEventListener("click", function () {
+  isAutoPlay = !isAutoPlay;
+  this.innerText = isAutoPlay ? "暂停轮换" : "开始轮换";
+
+  if (isAutoPlay) {
+    startAutoTimer();
+  } else {
+    stopAutoTimer();
+  }
+});
 
 async function loadData() {
   const res = await fetch("./bing.json", { cache: "no-store" });
@@ -195,9 +256,13 @@ async function loadData() {
     return;
   }
 
-  setImage(currentData.current);
+  wallpaperList = [currentData.current, ...(currentData.history || [])];
+  activeIndex = 0;
+
+  setImage(wallpaperList[activeIndex]);
   updateInfo();
   renderHistory();
+  startAutoTimer();
 
   bg.onerror = () => {
     if (isHD) {
