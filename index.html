@@ -66,13 +66,13 @@ button:hover{
   </div>
 </div>
 <div class="btn-group">
-  <button id="toggle4k">切换高清原图</button>
+  <button id="toggle4k">切换画质</button>
   <button id="downloadBtn">下载图片</button>
 </div>
 
 <script>
 let currentData = null;
-let isHD = false;
+let isHD = true;
 let nowImgUrl = "";
 
 function setImage(url) {
@@ -84,7 +84,22 @@ async function loadData() {
   const res = await fetch("./bing.json", { cache: "no-store" });
   currentData = await res.json();
 
-  setImage(currentData.url);
+  // 默认优先高清UHD
+  const hdUrl = currentData.url_uhd || currentData.url_4k;
+  if(hdUrl){
+    setImage(hdUrl);
+    // 高清加载失败自动回退普通
+    document.getElementById("bg").onerror = ()=>{
+      isHD = false;
+      document.getElementById("toggle4k").innerText = "切换高清";
+      setImage(currentData.url);
+    }
+  }else{
+    isHD = false;
+    setImage(currentData.url);
+    document.getElementById("toggle4k").style.display = "none";
+  }
+
   document.getElementById("title").innerText = currentData.title;
   document.getElementById("copyright").innerHTML =
     `<a href="${currentData.copyrightlink}" target="_blank">${currentData.copyright}</a>`;
@@ -93,10 +108,6 @@ async function loadData() {
     document.getElementById("resolution").innerText =
       `当前尺寸：${currentData.resolution}`;
   }
-
-  if (!currentData.url_uhd && !currentData.url_4k) {
-    document.getElementById("toggle4k").style.display = "none";
-  }
 }
 
 document.getElementById("toggle4k").addEventListener("click", function () {
@@ -104,25 +115,24 @@ document.getElementById("toggle4k").addEventListener("click", function () {
   isHD = !isHD;
   if (isHD) {
     const hdUrl = currentData.url_uhd || currentData.url_4k;
-    this.innerText = "回退普通图";
+    this.innerText = "切换普通";
     setImage(hdUrl);
     document.getElementById("bg").onerror = () => {
       isHD = false;
-      this.innerText = "切换高清原图";
+      this.innerText = "切换高清";
       setImage(currentData.url);
       alert("这张图没有开放高清原图，已回退普通画质");
     };
   } else {
-    this.innerText = "切换高清原图";
+    this.innerText = "切换高清";
     setImage(currentData.url);
     document.getElementById("bg").onerror = null;
   }
 });
 
-// 下载自定义文件名核心
+// 下载自定义文件名
 document.getElementById("downloadBtn").addEventListener("click",async ()=>{
   if(!nowImgUrl || !currentData) return;
-  // 清理文件名，去掉非法字符
   let name = currentData.title.replace(/[\/\\:*?"<>|]/g,"_");
   let resStr = currentData.resolution || "";
   let saveName = `必应壁纸_${name}_${resStr}.jpg`;
