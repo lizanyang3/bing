@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -98,7 +98,6 @@ function setImage(url) {
 }
 
 bg.addEventListener("load", function () {
-  // 图片真正加载完成后，读取浏览器拿到的原始像素宽高
   if (bg.naturalWidth && bg.naturalHeight) {
     resolutionEl.innerText =
       `当前图片：${bg.naturalWidth}×${bg.naturalHeight}`;
@@ -164,14 +163,27 @@ document.getElementById("downloadBtn").addEventListener("click", async () => {
   const saveName = `必应壁纸_${name}_${resStr}.jpg`;
 
   try {
+    const resp = await fetch(nowImgUrl, {
+      mode: "cors",
+      cache: "no-store"
+    });
+
+    if (!resp.ok) throw new Error("图片读取失败");
+
+    const blob = await resp.blob();
+    const objectUrl = URL.createObjectURL(blob);
+
     const a = document.createElement("a");
-    a.href = nowImgUrl;
+    a.href = objectUrl;
     a.download = saveName;
     document.body.appendChild(a);
     a.click();
     a.remove();
+
+    URL.revokeObjectURL(objectUrl);
   } catch (e) {
-    alert("受必应防盗链限制，无法直接下载，请右键图片另存为");
+    window.open(nowImgUrl, "_blank", "noopener");
+    alert("当前环境不能直接保存文件，请在新打开的图片页面右键另存为");
   }
 });
 
