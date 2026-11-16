@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bing 每日壁纸</title>
-<link rel="icon" href="/bing.ico" type="image/x-icon">
+<link rel="icon" href="/favicon.ico" type="image/x-icon">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{
@@ -27,16 +27,20 @@ body{
   padding:12px 16px;
   border-radius:8px;
   font-size:14px;
-  max-width:calc(100% - 160px);
+  max-width:calc(100% - 240px);
 }
 .info a{
   color:#8cf;
   text-decoration:none;
 }
-#toggle4k{
+.btn-group{
   position:fixed;
   bottom:20px;
   right:20px;
+  display:flex;
+  gap:10px;
+}
+button{
   color:#fff;
   background:rgba(0,0,0,0.55);
   border:1px solid rgba(255,255,255,0.3);
@@ -45,7 +49,7 @@ body{
   cursor:pointer;
   font-size:14px;
 }
-#toggle4k:hover{
+button:hover{
   background:rgba(0,0,0,0.75);
 }
 </style>
@@ -61,14 +65,18 @@ body{
     ⚠️ 图片来源 Bing，版权归原作者所有，仅作技术演示，请勿商用
   </div>
 </div>
-
-<button id="toggle4k">切换高清原图</button>
+<div class="btn-group">
+  <button id="toggle4k">切换高清原图</button>
+  <button id="downloadBtn">下载图片</button>
+</div>
 
 <script>
 let currentData = null;
 let isHD = false;
+let nowImgUrl = "";
 
 function setImage(url) {
+  nowImgUrl = url;
   document.getElementById("bg").src = url;
 }
 
@@ -93,15 +101,11 @@ async function loadData() {
 
 document.getElementById("toggle4k").addEventListener("click", function () {
   if (!currentData) return;
-
   isHD = !isHD;
-
   if (isHD) {
     const hdUrl = currentData.url_uhd || currentData.url_4k;
-
     this.innerText = "回退普通图";
     setImage(hdUrl);
-
     document.getElementById("bg").onerror = () => {
       isHD = false;
       this.innerText = "切换高清原图";
@@ -112,6 +116,26 @@ document.getElementById("toggle4k").addEventListener("click", function () {
     this.innerText = "切换高清原图";
     setImage(currentData.url);
     document.getElementById("bg").onerror = null;
+  }
+});
+
+// 下载自定义文件名核心
+document.getElementById("downloadBtn").addEventListener("click",async ()=>{
+  if(!nowImgUrl || !currentData) return;
+  // 清理文件名，去掉非法字符
+  let name = currentData.title.replace(/[\/\\:*?"<>|]/g,"_");
+  let resStr = currentData.resolution || "";
+  let saveName = `必应壁纸_${name}_${resStr}.jpg`;
+
+  try{
+    const a = document.createElement("a");
+    a.href = nowImgUrl;
+    a.download = saveName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }catch(e){
+    alert("受必应防盗链限制，无法直接下载，请右键图片另存为");
   }
 });
 
