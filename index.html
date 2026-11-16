@@ -75,6 +75,7 @@ button:hover{
 let currentData = null;
 let isHD = true;
 let nowImgUrl = "";
+let currentNaturalSize = "";
 
 const bg = document.getElementById("bg");
 const resolutionEl = document.getElementById("resolution");
@@ -93,14 +94,15 @@ function setResolutionText() {
 
 function setImage(url) {
   nowImgUrl = url;
+  currentNaturalSize = "";
   bg.src = url;
   setResolutionText();
 }
 
 bg.addEventListener("load", function () {
   if (bg.naturalWidth && bg.naturalHeight) {
-    resolutionEl.innerText =
-      `当前图片：${bg.naturalWidth}×${bg.naturalHeight}`;
+    currentNaturalSize = `${bg.naturalWidth}×${bg.naturalHeight}`;
+    resolutionEl.innerText = `当前图片：${currentNaturalSize}`;
   }
 });
 
@@ -159,7 +161,7 @@ document.getElementById("downloadBtn").addEventListener("click", async () => {
   if (!nowImgUrl || !currentData) return;
 
   const name = currentData.title.replace(/[\/\\:*?"<>|]/g, "_");
-  const resStr = currentData.resolution || "";
+  const resStr = currentNaturalSize || currentData.resolution || "";
   const saveName = `必应壁纸_${name}_${resStr}.jpg`;
 
   try {
