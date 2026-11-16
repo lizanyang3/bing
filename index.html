@@ -62,11 +62,12 @@ button:hover{
   <div id="copyright"></div>
   <div id="resolution" style="margin-top:6px;font-size:12px;color:#ccc"></div>
   <div style="margin-top:6px;font-size:12px;color:#ccc">
-    ⚠️ 图片来源 Bing，版权归原作者所有，仅作技术演示，请勿商用
+    图片来源 Bing，版权归原作者所有，仅作技术演示，请勿商用
   </div>
 </div>
+
 <div class="btn-group">
-  <button id="toggle4k">切换画质</button>
+  <button id="toggle4k">切换普通画质</button>
   <button id="downloadBtn">下载图片</button>
 </div>
 
@@ -75,76 +76,101 @@ let currentData = null;
 let isHD = true;
 let nowImgUrl = "";
 
+const bg = document.getElementById("bg");
+const resolutionEl = document.getElementById("resolution");
+const toggleBtn = document.getElementById("toggle4k");
+
+function setResolutionText() {
+  if (!currentData) return;
+
+  if (isHD) {
+    resolutionEl.innerText = "当前画质：高清原图 UHD";
+  } else {
+    resolutionEl.innerText =
+      `当前尺寸：${currentData.resolution || "1920×1080"}`;
+  }
+}
+
 function setImage(url) {
   nowImgUrl = url;
-  document.getElementById("bg").src = url;
+  bg.src = url;
+  setResolutionText();
 }
+
+bg.addEventListener("load", function () {
+  // 图片真正加载完成后，读取浏览器拿到的原始像素宽高
+  if (bg.naturalWidth && bg.naturalHeight) {
+    resolutionEl.innerText =
+      `当前图片：${bg.naturalWidth}×${bg.naturalHeight}`;
+  }
+});
 
 async function loadData() {
   const res = await fetch("./bing.json", { cache: "no-store" });
   currentData = await res.json();
 
-  // 默认优先高清UHD
-  const hdUrl = currentData.url_uhd || currentData.url_4k;
-  if(hdUrl){
-    setImage(hdUrl);
-    // 高清加载失败自动回退普通
-    document.getElementById("bg").onerror = ()=>{
-      isHD = false;
-      document.getElementById("toggle4k").innerText = "切换高清";
-      setImage(currentData.url);
-    }
-  }else{
-    isHD = false;
-    setImage(currentData.url);
-    document.getElementById("toggle4k").style.display = "none";
-  }
-
   document.getElementById("title").innerText = currentData.title;
   document.getElementById("copyright").innerHTML =
     `<a href="${currentData.copyrightlink}" target="_blank">${currentData.copyright}</a>`;
 
-  if (currentData.resolution) {
-    document.getElementById("resolution").innerText =
-      `当前尺寸：${currentData.resolution}`;
-  }
-}
+  const hdUrl = currentData.url_uhd || currentData.url_4k;
 
-document.getElementById("toggle4k").addEventListener("click", function () {
-  if (!currentData) return;
-  isHD = !isHD;
-  if (isHD) {
-    const hdUrl = currentData.url_uhd || currentData.url_4k;
-    this.innerText = "切换普通";
+  if (hdUrl) {
+    isHD = true;
+    toggleBtn.innerText = "切换普通画质";
     setImage(hdUrl);
-    document.getElementById("bg").onerror = () => {
+
+    bg.onerror = () => {
       isHD = false;
-      this.innerText = "切换高清";
+      toggleBtn.innerText = "切换高清原图";
       setImage(currentData.url);
       alert("这张图没有开放高清原图，已回退普通画质");
     };
   } else {
-    this.innerText = "切换高清";
+    isHD = false;
+    toggleBtn.style.display = "none";
     setImage(currentData.url);
-    document.getElementById("bg").onerror = null;
+  }
+}
+
+toggleBtn.addEventListener("click", function () {
+  if (!currentData) return;
+
+  isHD = !isHD;
+
+  if (isHD) {
+    const hdUrl = currentData.url_uhd || currentData.url_4k;
+    this.innerText = "切换普通画质";
+    setImage(hdUrl);
+
+    bg.onerror = () => {
+      isHD = false;
+      this.innerText = "切换高清原图";
+      setImage(currentData.url);
+      alert("这张图没有开放高清原图，已回退普通画质");
+    };
+  } else {
+    this.innerText = "切换高清原图";
+    setImage(currentData.url);
+    bg.onerror = null;
   }
 });
 
-// 下载自定义文件名
-document.getElementById("downloadBtn").addEventListener("click",async ()=>{
-  if(!nowImgUrl || !currentData) return;
-  let name = currentData.title.replace(/[\/\\:*?"<>|]/g,"_");
-  let resStr = currentData.resolution || "";
-  let saveName = `必应壁纸_${name}_${resStr}.jpg`;
+document.getElementById("downloadBtn").addEventListener("click", async () => {
+  if (!nowImgUrl || !currentData) return;
 
-  try{
+  const name = currentData.title.replace(/[\/\\:*?"<>|]/g, "_");
+  const resStr = currentData.resolution || "";
+  const saveName = `必应壁纸_${name}_${resStr}.jpg`;
+
+  try {
     const a = document.createElement("a");
     a.href = nowImgUrl;
     a.download = saveName;
     document.body.appendChild(a);
     a.click();
     a.remove();
-  }catch(e){
+  } catch (e) {
     alert("受必应防盗链限制，无法直接下载，请右键图片另存为");
   }
 });
