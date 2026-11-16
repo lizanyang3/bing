@@ -1,0 +1,46 @@
+name: Fetch Bing Wallpaper
+on:
+  workflow_dispatch: # 支持手动触发
+  schedule:
+    - cron: '0 0 * * *' # 每天 UTC 0点（北京时间早8点执行）
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch Bing data
+        run: |
+          node -e '
+          fetch("https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN")
+          .then(r=>r.json())
+          .then(d=>{
+            const img = d.images[0];
+            const result = {
+              title: img.title,
+              copyright: img.copyright,
+              url: "https://cn.bing.com" + img.url,
+              copyrightlink: img.copyrightlink,
+              enddate: img.enddate
+            };
+            require("fs").writeFileSync("bing.json", JSON.stringify(result, null, 2));
+            console.log("saved bing.json");
+          })
+          '
+
+      - name: Commit & Push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add bing.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "update bing wallpaper"
+          git push
