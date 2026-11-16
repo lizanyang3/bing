@@ -26,42 +26,81 @@ body{
   padding:12px 16px;
   border-radius:8px;
   font-size:14px;
-  max-width:calc(100% - 40px);
+  max-width:calc(100% - 160px);
 }
 .info a{
   color:#8cf;
   text-decoration:none;
 }
+#toggle4k{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  color:#fff;
+  background:rgba(0,0,0,0.55);
+  border:1px solid rgba(255,255,255,0.3);
+  padding:10px 14px;
+  border-radius:8px;
+  cursor:pointer;
+  font-size:14px;
+}
+#toggle4k:hover{
+  background:rgba(0,0,0,0.75);
+}
 </style>
 </head>
 <body>
 <img id="bg" alt="Bing Wallpaper">
+
 <div class="info">
   <div id="title"></div>
   <div id="copyright"></div>
+  <div id="resolution" style="margin-top:6px;font-size:12px;color:#ccc"></div>
   <div style="margin-top:6px;font-size:12px;color:#ccc">
     ⚠️ 图片来源 Bing，版权归原作者所有，仅作技术演示，请勿商用
   </div>
 </div>
-<script>
-fetch("./bing.json")
-.then(res => res.json())
-.then(data => {
-  document.getElementById("bg").src = data.url;
-  document.getElementById("title").innerText = data.title;
-  document.getElementById("copyright").innerHTML =
-    `<a href="${data.copyrightlink}" target="_blank">${data.copyright}</a>`;
 
-  if (data.resolution && data.resolution !== "") {
-    const res = document.createElement("div");
-    res.style.marginTop = "6px";
-    res.style.fontSize = "12px";
-    res.style.color = "#ccc";
-    res.innerText = `分辨率：${data.resolution}`;
-    document.querySelector(".info").appendChild(res);
+<button id="toggle4k">切换 4K</button>
+
+<script>
+let currentData = null;
+let isUHD = false;
+
+async function loadData() {
+  const res = await fetch("./bing.json");
+  currentData = await res.json();
+
+  document.getElementById("bg").src = currentData.url;
+  document.getElementById("title").innerText = currentData.title;
+  document.getElementById("copyright").innerHTML =
+    `<a href="${currentData.copyrightlink}" target="_blank">${currentData.copyright}</a>`;
+
+  if (currentData.resolution) {
+    document.getElementById("resolution").innerText =
+      `分辨率：${currentData.resolution}`;
   }
-})
-.catch(e => console.error("加载失败", e));
+
+  if (!currentData.url_uhd && !currentData.url_4k) {
+    document.getElementById("toggle4k").style.display = "none";
+  }
+}
+
+document.getElementById("toggle4k").addEventListener("click", function () {
+  if (!currentData) return;
+
+  isUHD = !isUHD;
+
+  if (isUHD) {
+    document.getElementById("bg").src = currentData.url_uhd || currentData.url_4k;
+    this.innerText = "切换普通画质";
+  } else {
+    document.getElementById("bg").src = currentData.url;
+    this.innerText = "切换 4K";
+  }
+});
+
+loadData().catch(e => console.error("加载失败", e));
 </script>
 </body>
 </html>
