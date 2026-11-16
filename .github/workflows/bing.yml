@@ -19,7 +19,6 @@ jobs:
         run: |
           python3 - <<'END'
           import json
-          import re
           import urllib.request
 
           url = "https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN"
@@ -29,25 +28,12 @@ jobs:
               data = json.loads(resp.read().decode("utf-8"))
 
           img = data["images"][0]
-          img_url = "https://cn.bing.com" + img["url"]
-
-          match = re.search(r"(\d+)x(\d+)", img["url"])
-          if match:
-              width, height = int(match.group(1)), int(match.group(2))
-              resolution = f"{width}×{height}"
-          else:
-              width, height, resolution = None, None, None
-
           out = {
               "title": img["title"],
               "copyright": img["copyright"],
-              "url": img_url,
-              "urlbase": "https://cn.bing.com" + img["urlbase"],
+              "url": "https://cn.bing.com" + img["url"],
               "copyrightlink": img["copyrightlink"],
               "enddate": img["enddate"],
-              "width": width,
-              "height": height,
-              "resolution": resolution,
           }
 
           with open("bing.json", "w", encoding="utf-8") as f:
@@ -59,6 +45,5 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add bing.json
-          git diff --quiet && git diff --staged --quiet || git commit -m "update bing wallpaper with resolution"
+          git diff --quiet && git diff --staged --quiet || git commit -m "update bing wallpaper"
           git push
-
