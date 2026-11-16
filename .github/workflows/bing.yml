@@ -1,4 +1,5 @@
 name: Fetch Bing Wallpaper
+
 on:
   workflow_dispatch:
   schedule:
@@ -23,29 +24,32 @@ jobs:
 
           url = "https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1&mkt=zh-CN"
           req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-          try:
-              with urllib.request.urlopen(req, timeout=20) as resp:
-                  data = json.loads(resp.read().decode("utf-8"))
-              img = data["images"][0]
-              img_url = "https://cn.bing.com" + img["url"]
-              match = re.search(r"(\d+)x(\d+)", img["url"])
-              if match:
-                  width, height = int(match.group(1)), int(match.group(2))
-                  resolution = f"{width}×{height}"
-              else:
-                  width, height, resolution = "", "", ""
-              out = {
-                  "title": img["title"],
-                  "copyright": img["copyright"],
-                  "url": img_url,
-                  "copyrightlink": img["copyrightlink"],
-                  "enddate": img["enddate"],
-                  "width": width,
-                  "height": height,
-                  "resolution": resolution
-              }
-          except Exception as e:
-              out = {"error": str(e)}
+
+          with urllib.request.urlopen(req, timeout=20) as resp:
+              data = json.loads(resp.read().decode("utf-8"))
+
+          img = data["images"][0]
+          img_url = "https://cn.bing.com" + img["url"]
+
+          match = re.search(r"(\d+)x(\d+)", img["url"])
+          if match:
+              width, height = int(match.group(1)), int(match.group(2))
+              resolution = f"{width}×{height}"
+          else:
+              width, height, resolution = None, None, None
+
+          out = {
+              "title": img["title"],
+              "copyright": img["copyright"],
+              "url": img_url,
+              "urlbase": "https://cn.bing.com" + img["urlbase"],
+              "copyrightlink": img["copyrightlink"],
+              "enddate": img["enddate"],
+              "width": width,
+              "height": height,
+              "resolution": resolution,
+          }
+
           with open("bing.json", "w", encoding="utf-8") as f:
               json.dump(out, f, ensure_ascii=False, indent=2)
           END
@@ -55,5 +59,5 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add bing.json
-          git diff --quiet && git diff --staged --quiet || git commit -m "update bing with resolution safe"
+          git diff --quiet && git diff --staged --quiet || git commit -m "update bing wallpaper with resolution"
           git push
