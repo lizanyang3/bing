@@ -45,15 +45,23 @@ body{
 </div>
 <script>
 fetch("./bing.json")
-.then(res=>res.json())
-.then(data=>{
+.then(res => res.json())
+.then(data => {
   document.getElementById("bg").src = data.url;
   document.getElementById("title").innerText = data.title;
-  document.getElementById("copyright").innerHTML = `<a href="${data.copyrightlink}" target="_blank">${data.copyright}</a>`;
+  document.getElementById("copyright").innerHTML =
+    `<a href="${data.copyrightlink}" target="_blank">${data.copyright}</a>`;
+
+  if (data.resolution && data.resolution !== "") {
+    const res = document.createElement("div");
+    res.style.marginTop = "6px";
+    res.style.fontSize = "12px";
+    res.style.color = "#ccc";
+    res.innerText = `分辨率：${data.resolution}`;
+    document.querySelector(".info").appendChild(res);
+  }
 })
-.catch(e=>{
-  console.error("加载失败",e);
-})
+.catch(e => console.error("加载失败", e));
 </script>
 </body>
 </html>
