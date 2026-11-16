@@ -9,6 +9,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
   --bottom-safe: env(safe-area-inset-bottom, 0px);
+  --overlay: rgba(0,0,0,.45);
 }
 body{
   width:100vw;
@@ -45,15 +46,27 @@ body{
 }
 .info{
   position:fixed;
-  bottom:104px;
+  bottom:116px;
   left:20px;
   right:20px;
   color:#fff;
-  background:rgba(0,0,0,0.45);
+  background:var(--overlay);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
   padding:12px 16px;
   border-radius:8px;
   font-size:14px;
   max-width:calc(100% - 280px);
+}
+.greeting{
+  font-size:13px;
+  color:#ddd;
+  margin-bottom:6px;
+}
+.meta-row{
+  margin-top:6px;
+  font-size:12px;
+  color:#ccc;
 }
 .info a{
   color:#8cf;
@@ -90,13 +103,12 @@ button.active{
   left:20px;
   display:flex;
   gap:10px;
-  max-width:calc(100% - 280px);
+  max-width:calc(100% - 360px);
   overflow-x:auto;
   padding:4px;
   scrollbar-width:thin;
 }
 .history-item{
-  position:relative;
   width:120px;
   height:68px;
   border-radius:8px;
@@ -115,19 +127,6 @@ button.active{
   object-fit:cover;
   display:block;
 }
-.fav-dot{
-  position:absolute;
-  right:6px;
-  top:6px;
-  width:8px;
-  height:8px;
-  border-radius:50%;
-  background:#ffd166;
-  display:none;
-}
-.history-item.faved .fav-dot{
-  display:block;
-}
 
 @media (max-width: 720px){
   #bg{
@@ -136,7 +135,7 @@ button.active{
   .info{
     left:14px;
     right:14px;
-    bottom:152px;
+    bottom:166px;
     max-width:none;
     padding:10px 12px;
     font-size:13px;
@@ -170,7 +169,7 @@ button.active{
 
 @media (max-width: 380px){
   .info{
-    bottom:146px;
+    bottom:158px;
   }
   .history{
     bottom:72px;
@@ -194,10 +193,12 @@ button.active{
 </div>
 
 <div class="info">
+  <div class="greeting" id="greeting"></div>
   <div id="title"></div>
   <div id="copyright"></div>
-  <div id="resolution" style="margin-top:6px;font-size:12px;color:#ccc"></div>
-  <div style="margin-top:6px;font-size:12px;color:#ccc">
+  <div class="meta-row" id="resolution"></div>
+  <div class="meta-row" id="photoMeta"></div>
+  <div class="meta-row" style="color:#bbb">
     图片来源 Bing，版权归原作者所有，仅作技术演示，请勿商用
   </div>
 </div>
@@ -205,7 +206,7 @@ button.active{
 <div class="history" id="history"></div>
 
 <div class="btn-group">
-  <button id="favBtn">收藏</button>
+  <button id="modeBtn">随机模式</button>
   <button id="autoBtn">暂停轮换</button>
   <button id="toggle4k">切换普通画质</button>
   <button id="downloadBtn">下载图片</button>
@@ -213,7 +214,6 @@ button.active{
 
 <script>
 const ROTATE_INTERVAL = 30000;
-const STORAGE_KEY = "bing-wallpaper-favorites";
 
 let currentData = null;
 let wallpaperList = [];
@@ -226,41 +226,35 @@ let autoTimer = null;
 let progressTimer = null;
 let progressStart = 0;
 let isAutoPlay = true;
-let favorites = loadFavorites();
+let isRandom = false;
 
 const bg = document.getElementById("bg");
 const resolutionEl = document.getElementById("resolution");
+const photoMetaEl = document.getElementById("photoMeta");
 const toggleBtn = document.getElementById("toggle4k");
 const autoBtn = document.getElementById("autoBtn");
-const favBtn = document.getElementById("favBtn");
+const modeBtn = document.getElementById("modeBtn");
 const historyEl = document.getElementById("history");
 const progressBar = document.getElementById("progressBar");
 
-function loadFavorites() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-  } catch (e) {
-    return [];
-  }
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return "早上好";
+  if (hour >= 11 && hour < 14) return "中午好";
+  if (hour >= 14 && hour < 18) return "下午好";
+  if (hour >= 18 && hour < 23) return "晚上好";
+  return "夜深了";
 }
 
-function saveFavorites() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(favorites));
+function formatDate(enddate) {
+  if (!enddate || enddate.length !== 8) return "";
+  return `${enddate.slice(0, 4)}-${enddate.slice(4, 6)}-${enddate.slice(6, 8)}`;
 }
 
-function wallpaperKey(wallpaper) {
-  return wallpaper.enddate || wallpaper.urlbase || wallpaper.title;
-}
-
-function isFavorited(wallpaper) {
-  return wallpaper && favorites.includes(wallpaperKey(wallpaper));
-}
-
-function updateFavButton() {
-  if (!activeWallpaper) return;
-  const faved = isFavorited(activeWallpaper);
-  favBtn.classList.toggle("active", faved);
-  favBtn.innerText = faved ? "已收藏" : "收藏";
+function extractArtist(copyrightText) {
+  if (!copyrightText) return "";
+  const match = copyrightText.match(/©\s*(.+?)(?:\)|$)/);
+  return match ? match[1].trim() : "";
 }
 
 function setResolutionText() {
@@ -272,6 +266,57 @@ function setResolutionText() {
     resolutionEl.innerText =
       `当前尺寸：${activeWallpaper.resolution || "1920×1080"}`;
   }
+}
+
+function updatePhotoMeta() {
+  if (!activeWallpaper) return;
+
+  const date = formatDate(activeWallpaper.enddate);
+  const artist = extractArtist(activeWallpaper.copyright);
+  const parts = [];
+
+  if (date) parts.push(`日期：${date}`);
+  if (artist) parts.push(`作者：${artist}`);
+
+  photoMetaEl.innerText = parts.length ? parts.join("　") : "拍摄信息暂未提供";
+}
+
+function applyImageOverlay() {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!bg.naturalWidth || !bg.naturalHeight) {
+    document.documentElement.style.setProperty("--overlay", "rgba(0,0,0,.45)");
+    return;
+  }
+
+  const width = 32;
+  const height = 18;
+  canvas.width = width;
+  canvas.height = height;
+  ctx.drawImage(bg, 0, 0, width, height);
+
+  const pixels = ctx.getImageData(0, 0, width, height).data;
+  let r = 0, g = 0, b = 0, count = 0;
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    r += pixels[i];
+    g += pixels[i + 1];
+    b += pixels[i + 2];
+    count++;
+  }
+
+  r = Math.round(r / count);
+  g = Math.round(g / count);
+  b = Math.round(b / count);
+
+  const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  const alpha = luminance > 0.65 ? 0.58 : 0.38;
+
+  document.documentElement.style.setProperty(
+    "--overlay",
+    `rgba(${r},${g},${b},${alpha})`
+  );
 }
 
 function setImage(wallpaper) {
@@ -289,12 +334,13 @@ function setImage(wallpaper) {
   bg.classList.remove("visible");
   bg.src = nowImgUrl;
   setResolutionText();
-  updateFavButton();
+  updatePhotoMeta();
 }
 
 function updateInfo() {
   if (!activeWallpaper) return;
 
+  document.getElementById("greeting").innerText = getGreeting();
   document.getElementById("title").innerText = activeWallpaper.title;
   document.getElementById("copyright").innerHTML =
     `<a href="${activeWallpaper.copyrightlink}" target="_blank">${activeWallpaper.copyright}</a>`;
@@ -309,6 +355,8 @@ function markActiveThumb() {
 
 bg.addEventListener("load", function () {
   bg.classList.add("visible");
+  applyImageOverlay();
+
   if (bg.naturalWidth && bg.naturalHeight) {
     currentNaturalSize = `${bg.naturalWidth}×${bg.naturalHeight}`;
     resolutionEl.innerText = `当前图片：${currentNaturalSize}`;
@@ -322,18 +370,13 @@ function renderHistory() {
     const item = document.createElement("div");
     item.className = "history-item";
     item.title = wallpaper.title;
-    item.classList.toggle("faved", isFavorited(wallpaper));
 
     const img = document.createElement("img");
     img.src = wallpaper.thumbnail || wallpaper.url;
     img.alt = wallpaper.title;
     img.loading = "lazy";
 
-    const dot = document.createElement("span");
-    dot.className = "fav-dot";
-
     item.appendChild(img);
-    item.appendChild(dot);
     item.addEventListener("click", () => {
       activeIndex = index;
       setImage(wallpaper);
@@ -348,6 +391,20 @@ function renderHistory() {
   markActiveThumb();
 }
 
+function getNextIndex() {
+  if (wallpaperList.length <= 1) return activeIndex;
+
+  if (isRandom) {
+    let next;
+    do {
+      next = Math.floor(Math.random() * wallpaperList.length);
+    } while (next === activeIndex);
+    return next;
+  }
+
+  return activeIndex + 1;
+}
+
 function showWallpaper(index) {
   if (wallpaperList.length === 0) return;
   activeIndex = (index + wallpaperList.length) % wallpaperList.length;
@@ -360,7 +417,7 @@ function showWallpaper(index) {
 }
 
 function showNextWallpaper() {
-  showWallpaper(activeIndex + 1);
+  showWallpaper(getNextIndex());
 }
 
 function showPrevWallpaper() {
@@ -414,24 +471,15 @@ function toggleAutoPlay() {
   }
 }
 
+function toggleMode() {
+  isRandom = !isRandom;
+  modeBtn.classList.toggle("active", isRandom);
+  modeBtn.innerText = isRandom ? "随机模式" : "顺序模式";
+  restartAutoTimer();
+}
+
 autoBtn.addEventListener("click", toggleAutoPlay);
-
-favBtn.addEventListener("click", () => {
-  if (!activeWallpaper) return;
-
-  const key = wallpaperKey(activeWallpaper);
-  const index = favorites.indexOf(key);
-
-  if (index >= 0) {
-    favorites.splice(index, 1);
-  } else {
-    favorites.push(key);
-  }
-
-  saveFavorites();
-  updateFavButton();
-  renderHistory();
-});
+modeBtn.addEventListener("click", toggleMode);
 
 async function downloadCurrent() {
   if (!nowImgUrl || !activeWallpaper) return;
@@ -491,6 +539,8 @@ document.addEventListener("keydown", (event) => {
     downloadCurrent();
   } else if (event.key.toLowerCase() === "f") {
     toggleFullscreen();
+  } else if (event.key.toLowerCase() === "m") {
+    toggleMode();
   }
 });
 
