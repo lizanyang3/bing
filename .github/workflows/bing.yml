@@ -1,0 +1,74 @@
+name: Fetch Bing Wallpaper
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fetch Bing wallpaper
+        run: |
+          python3 - <<'END'
+          import json
+          import re
+          import urllib.request
+
+          url = "https://cn.bing.com/HPImageArchive.aspx?format=js&idx=0&n=7&mkt=zh-CN"
+          req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+
+          try:
+              with urllib.request.urlopen(req, timeout=20) as resp:
+                  data = json.loads(resp.read().decode("utf-8"))
+
+              wallpapers = []
+              for img in data["images"]:
+                  base = "https://cn.bing.com" + img["urlbase"]
+                  match = re.search(r"(\d+)x(\d+)", img["url"])
+
+                  if match:
+                      width, height = int(match.group(1)), int(match.group(2))
+                      resolution = f"{width}×{height}"
+                  else:
+                      width, height, resolution = "", "", ""
+
+                  wallpapers.append({
+                      "title": img["title"],
+                      "copyright": img["copyright"],
+                      "url": "https://cn.bing.com" + img["url"],
+                      "url_uhd": base + "_UHD.jpg",
+                      "url_4k": base + "_3840x2160.jpg",
+                      "thumbnail": base + "_480x270.jpg",
+                      "copyrightlink": img["copyrightlink"],
+                      "enddate": img["enddate"],
+                      "width": width,
+                      "height": height,
+                      "resolution": resolution
+                  })
+
+              out = {
+                  "current": wallpapers[0],
+                  "history": wallpapers[1:7]
+              }
+          except Exception as e:
+              out = {"error": str(e), "current": None, "history": []}
+
+          with open("bing.json", "w", encoding="utf-8") as f:
+              json.dump(out, f, ensure_ascii=False, indent=2)
+          END
+
+      - name: Commit and push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add bing.json
+          git diff --quiet && git diff --staged --quiet || git commit -m "add seven-day wallpaper history"
+          git push
